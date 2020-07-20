@@ -2,7 +2,8 @@
 require('shelljs/global');
 require('colors');
 
-var Mocha = require('mocha'),
+var _ = require('lodash'),
+    Mocha = require('mocha'),
     expect = require('chai').expect,
     recursive = require('recursive-readdir'),
 
@@ -38,8 +39,13 @@ module.exports = function (exit) {
 
         // start the mocha run
         global.expect = expect; // for easy reference
-        global.exec = function (cmd, done) { // override exec for it to become silent by default
-            return _exec(cmd, execOptions, done);
+        global.exec = function (cmd, options, done) { // override exec for it to become silent by default
+            if (!done && _.isFunction(options)) {
+                done = options;
+                options = {};
+            }
+
+            return _exec(cmd, { ...execOptions, ...options }, done);
         };
 
         mocha.run(function (err) {
