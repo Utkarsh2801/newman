@@ -1,3 +1,4 @@
+/* eslint-disable no-process-env */
 describe('cli parser', function () {
     var _ = require('lodash'),
         sinon = require('sinon'),
@@ -27,7 +28,8 @@ describe('cli parser', function () {
 
     describe('Run Command', function () {
         let outDir = join(__dirname, '..', '..', 'out'),
-            homeRCFile = join(outDir, '.postman', 'newmanrc');
+            homeRCFile = join(outDir, '.postman', 'newmanrc'),
+            processEnv = process.env;
 
         // stub `newman.run`, directly return options passed to `newman.run` in newmanCLI.
         before(function () {
@@ -42,6 +44,11 @@ describe('cli parser', function () {
         });
 
         beforeEach(function () {
+            // clear all the env variables related to newman to avoid passing default options from it
+            process.env = _.omitBy(process.env, (_value, key) => {
+                return (key.startsWith('POSTMAN_') || key.startsWith('NEWMAN_')) && key !== 'NEWMAN_TEST_ENV';
+            });
+
             // stub `fs.readfile` to ignore file-read errors
             sinon.stub(fs, 'readFile').callsFake((_file, cb) => {
                 return cb(null, Buffer.from('{}', 'utf-8'));
@@ -49,8 +56,8 @@ describe('cli parser', function () {
         });
 
         afterEach(function () {
-            // restore original `fs.readfile`
-            fs.readFile.restore();
+            process.env = processEnv; // restore the process-env
+            fs.readFile.restore(); // restore original `fs.readfile`
         });
 
         it('should pass default options correctly', function (done) {
@@ -74,7 +81,9 @@ describe('cli parser', function () {
                         timeoutRequest: 0,
                         timeoutScript: 0,
                         reporterOptions: {},
-                        reporter: { cli: {} }
+                        reporter: { cli: {} },
+                        _login: undefined,
+                        postmanApiKeyAlias: 'default'
                     });
 
                     done();
@@ -168,6 +177,7 @@ describe('cli parser', function () {
                 '--export-environment exported_env.json ' +
                 '--export-globals exported_glob.json ' +
                 '--postman-api-key POSTMAN_API_KEY ' +
+                '--postman-api-key-alias testalias ' +
                 '--reporter-cli-no-summary ' +
                 '--iteration-count 23 ' +
                 '--reporters json ' +
@@ -195,6 +205,7 @@ describe('cli parser', function () {
                 expect(opts.globals).to.equal('myGlobals.json');
                 expect(opts.exportGlobals).to.equal('exported_glob.json');
                 expect(opts.postmanApiKey).to.equal('POSTMAN_API_KEY');
+                expect(opts.postmanApiKeyAlias).to.equal('testalias');
                 expect(opts.delayRequest, 'should have delayRequest of 12000').to.equal(12000);
                 expect(opts.timeout, 'should have timeout of 10000').to.equal(10000);
                 expect(opts.timeoutRequest, 'should have timeoutRequest of 5000').to.equal(5000);
@@ -233,6 +244,7 @@ describe('cli parser', function () {
                 '--disable-unicode ' +
                 '--export-environment exported_env.json ' +
                 '--export-globals exported_glob.json ' +
+                '--postman-api-key-alias testalias ' +
                 '--reporter-cli-no-summary ' +
                 '--reporter-cli-no-success-assertions ' +
                 '--iteration-count 23 ' +
@@ -264,6 +276,7 @@ describe('cli parser', function () {
                 expect(opts.globals).to.equal('myGlobals.json');
 
                 expect(opts.exportGlobals).to.equal('exported_glob.json');
+                expect(opts.postmanApiKeyAlias).to.equal('testalias');
                 expect(opts.delayRequest, 'should have delayRequest of 12000').to.equal(12000);
                 expect(opts.timeout, 'should have timeout of 10000').to.equal(10000);
                 expect(opts.timeoutRequest, 'should have timeoutRequest of 5000').to.equal(5000);
@@ -347,6 +360,21 @@ describe('cli parser', function () {
             });
         });
 
+        it('should load config settings from process-env', function (done) {
+            process.env.POSTMAN_API_KEY = '123';
+            process.env.POSTMAN_API_KEY_ALIAS = 'TEST_ALIAS';
+
+            cli('node newman.js run myCollection.json'.split(' '), 'run', function (err, opts) {
+                expect(err).to.be.null;
+                expect(opts).to.be.ok;
+
+                expect(opts.postmanApiKey).to.equal('123');
+                expect(opts.postmanApiKeyAlias).to.equal('TEST_ALIAS');
+
+                done();
+            });
+        });
+
         it('should merge options from all sources', function (done) {
             let fileData = {
                 run: {
@@ -354,7 +382,9 @@ describe('cli parser', function () {
                     environment: 'test-env',
                     folder: ['folder1', 'folder2'],
                     iterationCount: 5,
-                    envVar: [{ key: 'envVar1', value: '5' }]
+                    envVar: [{ key: 'envVar1', value: '5' }],
+                    postmanApiKey: '123',
+                    postmanApiKeyAlias: 'POSTMAN_API_KEY_ALIAS'
                 }
             };
 
@@ -364,6 +394,8 @@ describe('cli parser', function () {
 
                 return cb(null, Buffer.from('{}', 'utf-8'));
             });
+
+            process.env.POSTMAN_API_KEY_ALIAS = 'TEST_ALIAS';
 
             cli(('node newman.js run myCollection.json -g abc -r cli -e env-test --env-var foo=bar -n 6').split(' '),
                 'run', function (err, opts) {
@@ -377,6 +409,8 @@ describe('cli parser', function () {
                     expect(opts.envVar).to.be.ok;
                     expect(opts.envVar).to.eql([{ key: 'foo', value: 'bar' }]);
                     expect(opts.globals).to.eql('abc');
+                    expect(opts.postmanApiKey).to.equal('123');
+                    expect(opts.postmanApiKeyAlias).to.equal('TEST_ALIAS');
 
                     done();
                 });
