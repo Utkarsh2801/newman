@@ -147,7 +147,6 @@ describe('postman-api-key-alias option and environment variable', function () {
 
         proc = exec(`node ../bin/newman.js run ${COLLECTION_API_URL} --postman-api-key-alias=${TEST_ALIAS}`,
             (code, stdout, stderr) => {
-                console.log(stdout, stderr);
                 expect(code, 'should have exit code of 0').to.equal(0);
                 expect(stderr).to.be.empty;
                 expect(stdout, 'should indicate the alias used').to.contain(TEST_ALIAS);
