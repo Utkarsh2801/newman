@@ -93,7 +93,8 @@ module.exports = {
     commanderToObject: (command) => {
         return _.reduce(command, (result, value, key) => {
             // Exclude command's private `_` variables and other objects
-            const validProp = !_.startsWith(key, '_') && !_.includes(['commands', 'options', 'parent'], key);
+            const validProp = (!_.startsWith(key, '_') && !_.includes(['commands', 'options', 'parent'], key)) ||
+            key === '_login';
 
             validProp && (result[key] = value);
 
