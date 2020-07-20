@@ -25,6 +25,11 @@ module.exports = function (exit) {
     // eslint-disable-next-line no-process-env
     process.env[isWin ? 'userprofile' : 'HOME'] = outDir;
 
+    // Used to indicate the child processes that their execution is during a test
+    // This slightly alters their logic to test some cases
+    // eslint-disable-next-line no-process-env
+    process.env.NEWMAN_TEST_ENV = 'cli';
+
     // banner line
     console.info('Running CLI integration tests using mocha and shelljs...'.yellow.bold);
 

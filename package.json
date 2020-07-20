@@ -28,7 +28,7 @@
     "test-lint": "node npm/test-lint.js",
     "test-unit": "nyc --nycrc-path=.nycrc.js node npm/test-unit.js",
     "test-integration": "nyc --nycrc-path=.nycrc.js node npm/test-integration.js",
-    "test-cli": "NEWMAN_TEST_ENV=cli nyc --nycrc-path=.nycrc.js node npm/test-cli.js",
+    "test-cli": "nyc --nycrc-path=.nycrc.js node npm/test-cli.js",
     "test-library": "nyc --nycrc-path=.nycrc.js node npm/test-library.js",
     "build-docs": "node npm/build-docs.js",
     "build-wiki": "node npm/build-wiki.js",
