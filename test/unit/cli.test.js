@@ -167,6 +167,7 @@ describe('cli parser', function () {
                 '--no-insecure-file-read ' +
                 '--export-environment exported_env.json ' +
                 '--export-globals exported_glob.json ' +
+                '--sync-environment ' +
                 '--postman-api-key POSTMAN_API_KEY ' +
                 '--reporter-cli-no-summary ' +
                 '--iteration-count 23 ' +
@@ -191,6 +192,7 @@ describe('cli parser', function () {
                 expect(opts.workingDir).to.eql('/Users/postman');
                 expect(opts.insecureFileRead).to.be.false;
                 expect(opts.exportEnvironment).to.equal('exported_env.json');
+                expect(opts.syncEnvironment).to.equal(true);
                 expect(opts.iterationData).to.equal('path/to/csv.csv');
                 expect(opts.globals).to.equal('myGlobals.json');
                 expect(opts.exportGlobals).to.equal('exported_glob.json');
@@ -233,6 +235,7 @@ describe('cli parser', function () {
                 '--disable-unicode ' +
                 '--export-environment exported_env.json ' +
                 '--export-globals exported_glob.json ' +
+                '--sync-environment ' +
                 '--reporter-cli-no-summary ' +
                 '--reporter-cli-no-success-assertions ' +
                 '--iteration-count 23 ' +
@@ -262,6 +265,7 @@ describe('cli parser', function () {
                 expect(opts.exportEnvironment).to.equal('exported_env.json');
                 expect(opts.iterationData).to.equal('/path/to/csv.csv');
                 expect(opts.globals).to.equal('myGlobals.json');
+                expect(opts.syncEnvironment).to.equal(true);
 
                 expect(opts.exportGlobals).to.equal('exported_glob.json');
                 expect(opts.delayRequest, 'should have delayRequest of 12000').to.equal(12000);

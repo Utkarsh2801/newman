@@ -1,6 +1,23 @@
 var sdk = require('postman-collection'),
+    nock = require('nock'),
+    sinon = require('sinon'),
+    liquidJSON = require('liquid-json'),
 
-    util = require('../../lib/util');
+    util = require('../../lib/util'),
+
+    POSTMAN_API_URL = 'https://api.getpostman.com',
+
+    SAMPLE_ENVIRONMENT_UID = '1234-931c1484-fd1e-4ceb-81d0-2aa102ca8b5f',
+    SAMPLE_ENVIRONMENT_ID = '931c1484-fd1e-4ceb-81d0-2aa102ca8b5f',
+
+    SAMPLE_ENVIRONMENT = {
+        id: 'E1',
+        name: 'Environment',
+        values: [{
+            key: 'foo',
+            value: 'bar'
+        }]
+    };
 
 describe('utility helpers', function () {
     describe('getFullName', function () {
@@ -80,6 +97,150 @@ describe('utility helpers', function () {
 
         it('should correctly beautify given timeings object', function () {
             expect(util.beautifyTime(timings)).to.eql(beautifiedTimings);
+        });
+    });
+
+    describe('syncJson', function () {
+        let responseCode,
+            response,
+            spy;
+
+        before(function () {
+            nock('https://api.getpostman.com')
+                .persist()
+                .put(/^\/environments/)
+                .query(true)
+                .reply(() => {
+                    return [responseCode, response];
+                });
+        });
+
+        after(function () {
+            nock.restore();
+        });
+
+        beforeEach(function () {
+            // spy the `postman-request` module
+            spy = sinon.spy(require.cache[require.resolve('postman-request')], 'exports');
+
+            // reload the util module to use the spied postman-request module
+            delete require.cache[require.resolve('../../lib/util')];
+            util = require('../../lib/util');
+        });
+
+        afterEach(function () {
+            spy.restore();
+        });
+
+        it('should work with an URL with apikey query param', function (done) {
+            let location = `https://api.getpostman.com/environments/${SAMPLE_ENVIRONMENT_UID}?apikey=123456`;
+
+            responseCode = 200;
+            response = SAMPLE_ENVIRONMENT;
+
+            util.syncJson(location, SAMPLE_ENVIRONMENT, { type: 'environment' }, (err) => {
+                expect(err).to.be.null;
+
+                sinon.assert.calledOnce(spy);
+
+                let requestArg = spy.firstCall.args[0],
+                    body;
+
+                expect(requestArg).to.be.an('object').and.include.keys(['method', 'url', 'headers', 'body']);
+                expect(requestArg.method).to.equal('PUT');
+                expect(requestArg.url).to.equal(location);
+                expect(requestArg.headers).to.be.an('object')
+                    .that.has.property('Content-Type', 'application/json');
+
+                body = liquidJSON.parse(requestArg.body.trim());
+                expect(body).to.eql({ environment: SAMPLE_ENVIRONMENT });
+
+                done();
+            });
+        });
+
+        it('should work with environment-ID along with postman-api-key', function (done) {
+            responseCode = 200;
+            response = SAMPLE_ENVIRONMENT;
+
+            util.syncJson(SAMPLE_ENVIRONMENT_ID, SAMPLE_ENVIRONMENT,
+                { type: 'environment', postmanApiKey: 1234 }, (err) => {
+                    expect(err).to.be.null;
+
+                    sinon.assert.calledOnce(spy);
+
+                    let requestArg = spy.firstCall.args[0],
+                        body;
+
+                    expect(requestArg).to.be.an('object').and.include.keys(['method', 'url', 'headers', 'body']);
+                    expect(requestArg.method).to.equal('PUT');
+                    expect(requestArg.url).to.equal(`${POSTMAN_API_URL}/environments/${SAMPLE_ENVIRONMENT_ID}`);
+
+                    expect(requestArg.headers).to.be.an('object').and.include.keys(['Content-Type', 'X-Api-Key']);
+                    expect(requestArg.headers['Content-Type']).to.equal('application/json');
+                    expect(requestArg.headers['X-Api-Key']).to.equal(1234);
+
+                    body = liquidJSON.parse(requestArg.body.trim());
+                    expect(body).to.eql({ environment: SAMPLE_ENVIRONMENT });
+
+                    done();
+                });
+        });
+
+        it('should pass an error if the api-key is not available', function (done) {
+            responseCode = 200;
+            response = SAMPLE_ENVIRONMENT;
+
+            util.syncJson(SAMPLE_ENVIRONMENT_UID, SAMPLE_ENVIRONMENT, { type: 'environment' }, (err) => {
+                expect(err).to.be.ok.that.match(/authorization data not found/);
+                sinon.assert.notCalled(spy);
+
+                done();
+            });
+        });
+
+        it('should pass an error for invalid location', function (done) {
+            responseCode = 200;
+            response = SAMPLE_ENVIRONMENT;
+
+            util.syncJson('1234', SAMPLE_ENVIRONMENT, { type: 'environment', postmanApiKey: 1234 }, (err) => {
+                expect(err).to.be.ok.that.match(/sync location not found/);
+                sinon.assert.notCalled(spy);
+
+                done();
+            });
+        });
+
+        it('should pass the error from response-body if the response code is not of the form 2xx', function (done) {
+            responseCode = 401;
+            response = {
+                error: {
+                    message: 'Invalid API Key. Every request requires a valid API Key to be sent.'
+                }
+            };
+
+            util.syncJson(SAMPLE_ENVIRONMENT_UID, SAMPLE_ENVIRONMENT, { type: 'environment', postmanApiKey: 1234 },
+                (err) => {
+                    expect(err).not.to.be.null;
+                    expect(err.message).to.contain(response.error.message);
+                    sinon.assert.calledOnce(spy);
+
+                    let requestArg = spy.firstCall.args[0],
+                        body;
+
+                    expect(requestArg).to.be.an('object').and.include.keys(['method', 'url', 'headers', 'body']);
+                    expect(requestArg.method).to.equal('PUT');
+                    expect(requestArg.url).to.equal(`${POSTMAN_API_URL}/environments/${SAMPLE_ENVIRONMENT_UID}`);
+
+                    expect(requestArg.headers).to.be.an('object').and.include.keys(['Content-Type', 'X-Api-Key']);
+                    expect(requestArg.headers['Content-Type']).to.equal('application/json');
+                    expect(requestArg.headers['X-Api-Key']).to.equal(1234);
+
+                    body = liquidJSON.parse(requestArg.body.trim());
+                    expect(body).to.eql({ environment: SAMPLE_ENVIRONMENT });
+
+                    done();
+                });
         });
     });
 });
